@@ -60,7 +60,7 @@ named!(parse_int<Value>, do_parse!(
 
 // Any letter that is not `N` followed by a real value
 named!(parse_word<&[u8], Entity>, do_parse!(
-	letter: one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz") >>
+	letter: map!(one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"), |s| s.to_ascii_uppercase()) >>
 	value: alt!(parse_float | parse_int) >>
 	({
 		Entity::Word((letter, value))
