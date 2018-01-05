@@ -2,6 +2,11 @@ use nom::*;
 use std::str;
 use std::str::FromStr;
 
+#[derive(Debug)]
+enum Entity {
+	Comment(String),
+}
+
 // Duh
 // named!(parse_float);
 // named!(parse_int);
@@ -13,11 +18,11 @@ use std::str::FromStr;
 // named!(parse_word);
 
 // named!(parse_comment, delimited!("(", comment, ")"));
-named!(parse_comment<&[u8], String>, do_parse!(
+named!(parse_comment<&[u8], Entity>, do_parse!(
 	tag!("(") >>
 	text: take_until!(")") >>
 	tag!(")") >>
-	(FromStr::from_str(str::from_utf8(text).unwrap()).unwrap())
+	(Entity::Comment(FromStr::from_str(str::from_utf8(text).unwrap()).unwrap()))
 ));
 
 // named!(parse_numbered_variable, parse_int);
@@ -27,7 +32,7 @@ named!(parse_comment<&[u8], String>, do_parse!(
 // // Global vars must be parsed first because of the leading underscore
 // named!(parse_variable, "#", then one_of!(parse_numbered_variable | parse_global_variable | parse_local_variable))
 
-named!(parse<&[u8], Vec<String>>, many0!(
+named!(parse<&[u8], Vec<Entity>>, many1!(
 	ws!(
 		alt!(
 			parse_comment
