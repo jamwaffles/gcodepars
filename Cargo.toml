@@ -1,0 +1,6 @@
+[package]
+name = "gcodepars"
+version = "0.1.0"
+authors = ["James Waples <james@cambridge-intelligence.com>"]
+
+[dependencies]
