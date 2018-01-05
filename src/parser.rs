@@ -3,26 +3,78 @@ use std::str;
 use std::str::FromStr;
 
 #[derive(Debug)]
-enum Entity {
-	Comment(String),
+enum Value {
+	Int(i32),
+	Float(f32),
 }
 
-// Duh
-// named!(parse_float);
-// named!(parse_int);
+#[derive(Debug)]
+enum Entity {
+	Comment(String),
+	Word((char, Value))
+}
 
-// // A letter `N` followed by a real value
-// named!(parse_linenumber);
+named!(parse_float<Value>, do_parse!(
+	sign: opt!(tag!("-")) >>
+	bef: opt!(digit) >>
+	tag!(".") >>
+	aft: opt!(digit) >>
+	({
+		let a = match sign {
+			Some(sign) => str::from_utf8(sign).unwrap(),
+			None => ""
+		};
 
-// // Any letter that is not `N` followed by a real value
-// named!(parse_word);
+		let b = match bef {
+			Some(bef) => str::from_utf8(bef).unwrap(),
+			None => "0"
+		};
 
-// named!(parse_comment, delimited!("(", comment, ")"));
+		let c = match aft {
+			Some(aft) => str::from_utf8(aft).unwrap(),
+			None => "0"
+		};
+
+		let parsed = format!("{}{}.{}", a, b, c).parse::<f32>().unwrap();
+
+		Value::Float(parsed)
+	})
+));
+
+named!(parse_int<Value>, do_parse!(
+	sign: opt!(tag!("-")) >>
+	num: digit >>
+	({
+		let a = match sign {
+			Some(sign) => str::from_utf8(sign).unwrap(),
+			None => ""
+		};
+
+		let b = str::from_utf8(num).unwrap();
+
+		let parsed = format!("{}{}", a, b).parse::<i32>().unwrap();
+
+		Value::Int(parsed)
+	})
+));
+
+// Any letter that is not `N` followed by a real value
+named!(parse_word<&[u8], Entity>, do_parse!(
+	letter: one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz") >>
+	value: alt!(parse_float | parse_int) >>
+	({
+		Entity::Word((letter, value))
+	})
+));
+
 named!(parse_comment<&[u8], Entity>, do_parse!(
 	tag!("(") >>
-	text: take_until!(")") >>
+	text: map_res!(
+		map_res!(take_until!(")"), str::from_utf8),
+		FromStr::from_str
+	) >>
 	tag!(")") >>
-	(Entity::Comment(FromStr::from_str(str::from_utf8(text).unwrap()).unwrap()))
+	(Entity::Comment(text))
 ));
 
 // named!(parse_numbered_variable, parse_int);
@@ -32,10 +84,11 @@ named!(parse_comment<&[u8], Entity>, do_parse!(
 // // Global vars must be parsed first because of the leading underscore
 // named!(parse_variable, "#", then one_of!(parse_numbered_variable | parse_global_variable | parse_local_variable))
 
-named!(parse<&[u8], Vec<Entity>>, many1!(
-	ws!(
-		alt!(
-			parse_comment
+named!(parse<&[u8], Vec<Entity>>, ws!(
+	many1!(
+ 		alt!(
+			parse_comment |
+			parse_word
 		)
 	)
 ));
