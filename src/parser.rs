@@ -53,6 +53,18 @@ named!(int<i32>, do_parse!(
 // 	((letter, value))
 // ));
 
+named_args!(parse_word_float (letter: char) <f32>, do_parse!(
+	tag_no_case!(letter.to_string().as_bytes()) >>
+	number: float >>
+	({
+		println!("asdsgkjbajkshdgb {}", number);
+
+		123.0
+	})
+));
+
+// named_with_args!(parse_word_int (letter: char), );
+
 named!(parse_comment<&[u8], String>, do_parse!(
 	tag!("(") >>
 	text: map_res!(
@@ -70,14 +82,17 @@ named!(parse_comment<&[u8], String>, do_parse!(
 // // Global vars must be parsed first because of the leading underscore
 // named!(parse_variable, "#", then one_of!(parse_numbered_variable | parse_global_variable | parse_local_variable))
 
-// named!(parse<&[u8], Vec<Entity>>, ws!(
-// 	many1!(
-// 		alt!(
-// 			parse_comment => { |c| Entity::Comment(c) } |
-// 			parse_g => { |w| Entity::Word(w) }
-// 		)
-// 	)
-// ));
+
+// FIXME: somethingsomething https://stackoverflow.com/questions/28931515/how-do-i-implement-fromstr-with-a-concrete-lifetime this maybe? idk
+
+named!(parse<&[u8], Vec<Entity>>, ws!(
+	many1!(
+		alt!(
+			parse_comment => { |c| Entity::Comment(c) } |
+			parse_word_float('g') => { |g| Entity::Word(g) }
+		)
+	)
+));
 
 pub fn parse_gcode(input: &[u8]) {
 	println!("{}", str::from_utf8(input).unwrap());
