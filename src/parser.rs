@@ -59,20 +59,20 @@ named!(parse_int<Value>, do_parse!(
 ));
 
 // Any letter that is not `N` followed by a real value
-named!(parse_word<&[u8], Entity>, do_parse!(
+named!(parse_word<&[u8], (char, Value)>, do_parse!(
 	letter: map!(one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"), |s| s.to_ascii_uppercase()) >>
 	value: alt!(parse_float | parse_int) >>
-	(Entity::Word((letter, value)))
+	((letter, value))
 ));
 
-named!(parse_comment<&[u8], Entity>, do_parse!(
+named!(parse_comment<&[u8], String>, do_parse!(
 	tag!("(") >>
 	text: map_res!(
 		map_res!(take_until!(")"), str::from_utf8),
 		FromStr::from_str
 	) >>
 	tag!(")") >>
-	(Entity::Comment(text))
+	(text)
 ));
 
 // named!(parse_numbered_variable, parse_int);
@@ -84,9 +84,9 @@ named!(parse_comment<&[u8], Entity>, do_parse!(
 
 named!(parse<&[u8], Vec<Entity>>, ws!(
 	many1!(
- 		alt!(
-			parse_comment |
-			parse_word
+		alt!(
+			parse_comment => { |c| Entity::Comment(c) } |
+			parse_word => { |w| Entity::Word(w) }
 		)
 	)
 ));
@@ -103,4 +103,18 @@ pub fn construct_scope_tree() {
 	// Turn "flat" parsed G-code into a scoped tree
 	// This is so we can do stuff like "run from line, but set the tool and start the spindle" or whatever
 	// It's a bit like an AST in that it holds context information
+}
+
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn it_parses_utf8_comments() {
+		let comment = "(Good 👍 stuff 👌)".as_bytes();
+		let parsed = "Good 👍 stuff 👌".to_string();
+
+		assert_eq!(parse_comment(comment), Ok(("".as_bytes(), parsed)));
+	}
 }
