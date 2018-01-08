@@ -11,7 +11,7 @@ enum Value {
 #[derive(Debug)]
 enum Entity {
 	Comment(String),
-	Word((char, Value))
+	Word((char, Value)),
 }
 
 named!(parse_float<Value>, do_parse!(
@@ -62,9 +62,7 @@ named!(parse_int<Value>, do_parse!(
 named!(parse_word<&[u8], Entity>, do_parse!(
 	letter: map!(one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"), |s| s.to_ascii_uppercase()) >>
 	value: alt!(parse_float | parse_int) >>
-	({
-		Entity::Word((letter, value))
-	})
+	(Entity::Word((letter, value)))
 ));
 
 named!(parse_comment<&[u8], Entity>, do_parse!(
