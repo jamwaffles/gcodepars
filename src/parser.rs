@@ -11,37 +11,28 @@ enum Value {
 #[derive(Debug)]
 enum Entity {
 	Comment(String),
-	Word((char, Value)),
+	Word((char, u32)),
 }
 
-named!(parse_float<Value>, do_parse!(
-	sign: opt!(tag!("-")) >>
-	bef: opt!(digit) >>
-	tag!(".") >>
-	aft: opt!(digit) >>
+named!(float<f32>, do_parse!(
+	sign: opt!(one_of!("+-")) >>
+	num: recognize!(
+		alt!(
+			delimited!(digit, tag!("."), opt!(digit)) |
+			delimited!(opt!(digit), tag!("."), digit)
+		)
+	) >>
 	({
-		let a = match sign {
-			Some(sign) => str::from_utf8(sign).unwrap(),
-			None => ""
-		};
+		let parsed = str::from_utf8(num).unwrap().parse::<f32>().unwrap();
 
-		let b = match bef {
-			Some(bef) => str::from_utf8(bef).unwrap(),
-			None => "0"
-		};
-
-		let c = match aft {
-			Some(aft) => str::from_utf8(aft).unwrap(),
-			None => "0"
-		};
-
-		let parsed = format!("{}{}.{}", a, b, c).parse::<f32>().unwrap();
-
-		Value::Float(parsed)
+		match sign {
+			Some('-') => parsed * -1.0,
+			_ => parsed,
+		}
 	})
 ));
 
-named!(parse_int<Value>, do_parse!(
+named!(int<i32>, do_parse!(
 	sign: opt!(tag!("-")) >>
 	num: digit >>
 	({
@@ -52,18 +43,15 @@ named!(parse_int<Value>, do_parse!(
 
 		let b = str::from_utf8(num).unwrap();
 
-		let parsed = format!("{}{}", a, b).parse::<i32>().unwrap();
-
-		Value::Int(parsed)
+		format!("{}{}", a, b).parse::<i32>().unwrap()
 	})
 ));
 
-// Any letter that is not `N` followed by a real value
-named!(parse_word<&[u8], (char, Value)>, do_parse!(
-	letter: map!(one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"), |s| s.to_ascii_uppercase()) >>
-	value: alt!(parse_float | parse_int) >>
-	((letter, value))
-));
+// named!(parse_word<&[u8], (char, Value)>, do_parse!(
+// 	letter: map!(one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"), |s| s.to_ascii_uppercase()) >>
+// 	value: alt!(float | int) >>
+// 	((letter, value))
+// ));
 
 named!(parse_comment<&[u8], String>, do_parse!(
 	tag!("(") >>
@@ -82,21 +70,21 @@ named!(parse_comment<&[u8], String>, do_parse!(
 // // Global vars must be parsed first because of the leading underscore
 // named!(parse_variable, "#", then one_of!(parse_numbered_variable | parse_global_variable | parse_local_variable))
 
-named!(parse<&[u8], Vec<Entity>>, ws!(
-	many1!(
-		alt!(
-			parse_comment => { |c| Entity::Comment(c) } |
-			parse_word => { |w| Entity::Word(w) }
-		)
-	)
-));
+// named!(parse<&[u8], Vec<Entity>>, ws!(
+// 	many1!(
+// 		alt!(
+// 			parse_comment => { |c| Entity::Comment(c) } |
+// 			parse_g => { |w| Entity::Word(w) }
+// 		)
+// 	)
+// ));
 
 pub fn parse_gcode(input: &[u8]) {
 	println!("{}", str::from_utf8(input).unwrap());
 
-	let parsed = parse(input);
+	// let parsed = parse(input);
 
-	println!("{:?}", parsed);
+	// println!("{:?}", parsed);
 }
 
 pub fn construct_scope_tree() {
@@ -116,5 +104,18 @@ mod tests {
 		let parsed = "Good 👍 stuff 👌".to_string();
 
 		assert_eq!(parse_comment(comment), Ok(("".as_bytes(), parsed)));
+	}
+
+	#[test]
+	fn it_parses_floats() {
+		assert_eq!(float("123.456".as_bytes()), Ok(("".as_bytes(), 123.456)));
+		assert_eq!(float("0.123".as_bytes()), Ok(("".as_bytes(), 0.123)));
+		assert_eq!(float("123.0".as_bytes()), Ok(("".as_bytes(), 123.0)));
+		// FIXME
+		// assert_eq!(float("123.".as_bytes()), Ok(("".as_bytes(), 123.0)));
+		assert_eq!(float(".123".as_bytes()), Ok(("".as_bytes(), 0.123)));
+		assert_eq!(float("+.123".as_bytes()), Ok(("".as_bytes(), 0.123)));
+		assert_eq!(float("+1.123".as_bytes()), Ok(("".as_bytes(), 1.123)));
+		assert_eq!(float("-1.123".as_bytes()), Ok(("".as_bytes(), -1.123)));
 	}
 }
