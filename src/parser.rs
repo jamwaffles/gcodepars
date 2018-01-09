@@ -1,6 +1,5 @@
 use nom::*;
 use std::str;
-use std::str::FromStr;
 use nalgebra::{ VectorN, U9 };
 
 type Vector9 = VectorN<f32, U9>;
@@ -19,24 +18,24 @@ enum Axis {
 	U(f32), V(f32), W(f32),
 }
 
-#[derive(Debug, PartialEq)]
-enum GCode {
-	Rapid,			// G0
-	Move,			// G1
-	CWArc,			// G2
-	CCWArc,			// G3
-}
+// #[derive(Debug, PartialEq)]
+// enum GCode {
+// 	Rapid,			// G0
+// 	Move,			// G1
+// 	CWArc,			// G2
+// 	CCWArc,			// G3
+// }
 
-#[derive(Debug, PartialEq)]
-enum MCode {
-	EndProgram,		// M2
-	SpindleCW,		// M3
-	SpindleCCW,		// M4
-	SpindleStop,	// M5
-	CoolantMist,	// M7
-	CoolantFloor,	// M8
-	CoolantOff,		// M9
-}
+// #[derive(Debug, PartialEq)]
+// enum MCode {
+// 	EndProgram,		// M2
+// 	SpindleCW,		// M3
+// 	SpindleCCW,		// M4
+// 	SpindleStop,	// M5
+// 	CoolantMist,	// M7
+// 	CoolantFloor,	// M8
+// 	CoolantOff,		// M9
+// }
 
 #[derive(Debug, PartialEq)]
 enum Token {
@@ -44,18 +43,18 @@ enum Token {
 	MeasurementUnits(MeasurementUnit),
 	// RadiusCompensation(f32),
 	Feed(i32),
-	G(GCode),
+	// G(GCode),
 	// ToolLengthOffsetIndex(f32),
 	// ArcXOffset(f32),
 	// ArcYOffset(f32),
 	// ArcZOffset(f32),
 	// GenericParameter(f32),	// L word
-	M(MCode),
+	// M(MCode),
 	LineNumber(u32),
 	// DwellTime(f32),		// P
 	// FeedIncrement(f32),
-	Radius(f32),
-	SpindleSpeed(f32),
+	// Radius(f32),
+	SpindleSpeed(u32),
 	Tool(u32),
 	Rapid(Vector9),
 	Move(Vector9),
@@ -96,38 +95,38 @@ named!(int<i32>, do_parse!(
 	})
 ));
 
-named!(word<&[u8], String>, flat_map!(
-	recognize!(preceded!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), alt_complete!(recognize!(float) | recognize!(int)))),
-	parse_to!(String)
-));
+// named!(word<&[u8], String>, flat_map!(
+// 	recognize!(preceded!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), alt_complete!(recognize!(float) | recognize!(int)))),
+// 	parse_to!(String)
+// ));
 
-fn match_gcode(number: &String) -> Option<GCode> {
-	match number.as_str() {
-		"0" => Some(GCode::Rapid),
-		"1" => Some(GCode::Move),
-		"2" => Some(GCode::CWArc),
-		"3" => Some(GCode::CCWArc),
-		_ => None
-	}
-}
+// fn match_gcode(number: &String) -> Option<GCode> {
+// 	match number.as_str() {
+// 		"0" => Some(GCode::Rapid),
+// 		"1" => Some(GCode::Move),
+// 		"2" => Some(GCode::CWArc),
+// 		"3" => Some(GCode::CCWArc),
+// 		_ => None
+// 	}
+// }
 
-named!(word_split<&[u8], Token>, do_parse!(
-	letter: map!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), |s| s.to_ascii_uppercase()) >>
-	number: flat_map!(alt_complete!(recognize!(float) | recognize!(int)), parse_to!(String)) >>
-	({
-		match letter {
-			'G' => match match_gcode(&number) {
-				Some(code) => Token::G(code),
-				None => Token::Unknown(format!("G{}", number)),
-			}
-			// 'M' => match number {
-			// 	_ => Token::Unknown(format!("M{}", number)),
-			// },
-			'R' => Token::Radius(number.parse::<f32>().unwrap()),
-			_ => Token::Unknown(format!("{}{}", letter, number)),
-		}
-	})
-));
+// named!(word_split<&[u8], Token>, do_parse!(
+// 	letter: map!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), |s| s.to_ascii_uppercase()) >>
+// 	number: flat_map!(alt_complete!(recognize!(float) | recognize!(int)), parse_to!(String)) >>
+// 	({
+// 		match letter {
+// 			'G' => match match_gcode(&number) {
+// 				Some(code) => Token::G(code),
+// 				None => Token::Unknown(format!("G{}", number)),
+// 			}
+// 			// 'M' => match number {
+// 			// 	_ => Token::Unknown(format!("M{}", number)),
+// 			// },
+// 			'R' => Token::Radius(number.parse::<f32>().unwrap()),
+// 			_ => Token::Unknown(format!("{}{}", letter, number)),
+// 		}
+// 	})
+// ));
 
 named!(axis<&[u8], Axis>, do_parse!(
 	axis_letter: map!(one_of!("ABCUVWXYZabcuvwxyz"), |s| s.to_ascii_uppercase()) >>
@@ -226,11 +225,11 @@ pub fn parse_gcode(input: &[u8]) {
 	println!("{:?}", parsed);
 }
 
-pub fn construct_scope_tree() {
-	// Turn "flat" parsed G-code into a scoped tree
-	// This is so we can do stuff like "run from line, but set the tool and start the spindle" or whatever
-	// It's a bit like an AST in that it holds context information
-}
+// pub fn construct_scope_tree() {
+// 	// Turn "flat" parsed G-code into a scoped tree
+// 	// This is so we can do stuff like "run from line, but set the tool and start the spindle" or whatever
+// 	// It's a bit like an AST in that it holds context information
+// }
 
 #[cfg(test)]
 mod tests {
