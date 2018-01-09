@@ -176,16 +176,10 @@ named!(axes<&[u8], Vector9>, map!(
 	}
 ));
 
-named!(comment<&[u8], Token>, do_parse!(
-	tag!("(") >>
-	text: map_res!(
-		map_res!(take_until!(")"), str::from_utf8),
-		FromStr::from_str
-	) >>
-	tag!(")") >>
-	(Token::Comment(text))
+named!(comment<Token>, map!(
+	flat_map!(delimited!(tag!("("), take_until!(")"), tag!(")")), parse_to!(String)),
+	Token::Comment
 ));
-
 named!(rapid<Token>, preceded!(tag_no_case!("G0"), map!(axes, Token::Rapid)));
 named!(linear_move<Token>, preceded!(tag_no_case!("G1"), map!(axes, Token::Move)));
 named!(measurement_units<Token>, alt!(
@@ -202,7 +196,6 @@ named!(unknown<Token>, map!(
 	),
 	|t| Token::Unknown(t)
 ));
-
 
 // named!(parse_numbered_variable, parse_int);
 // named!(parse_local_variable, delimited("<", text, ">") );
