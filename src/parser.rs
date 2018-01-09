@@ -11,13 +11,13 @@ enum Value {
 #[derive(Debug)]
 enum Entity {
 	Comment(String),
-	Word((char, u32)),
+	Word(String),
 }
 
 named!(float<f32>, do_parse!(
 	sign: opt!(one_of!("+-")) >>
 	num: recognize!(
-		alt!(
+		alt_complete!(
 			delimited!(digit, tag!("."), opt!(digit)) |
 			delimited!(opt!(digit), tag!("."), digit)
 		)
@@ -47,21 +47,26 @@ named!(int<i32>, do_parse!(
 	})
 ));
 
+named!(parse_word<&[u8], String>, flat_map!(
+	recognize!(preceded!(alpha, alt_complete!(recognize!(float) | recognize!(int)))),
+	parse_to!(String)
+));
+
 // named!(parse_word<&[u8], (char, Value)>, do_parse!(
 // 	letter: map!(one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"), |s| s.to_ascii_uppercase()) >>
 // 	value: alt!(float | int) >>
 // 	((letter, value))
 // ));
 
-named_args!(parse_word_float (letter: char) <f32>, do_parse!(
-	tag_no_case!(letter.to_string().as_bytes()) >>
-	number: float >>
-	({
-		println!("asdsgkjbajkshdgb {}", number);
+// named_args!(parse_word_float (letter: char) <f32>, do_parse!(
+// 	tag_no_case!(letter.to_string().as_bytes()) >>
+// 	number: float >>
+// 	({
+// 		println!("asdsgkjbajkshdgb {}", number);
 
-		123.0
-	})
-));
+// 		123.0
+// 	})
+// ));
 
 // named_with_args!(parse_word_int (letter: char), );
 
@@ -88,8 +93,8 @@ named!(parse_comment<&[u8], String>, do_parse!(
 named!(parse<&[u8], Vec<Entity>>, ws!(
 	many1!(
 		alt!(
-			parse_comment => { |c| Entity::Comment(c) } |
-			parse_word_float('g') => { |g| Entity::Word(g) }
+			parse_comment => { |c| Entity::Comment(c) }
+			// parse_word => { |g| Entity::Word(g) }
 		)
 	)
 ));
@@ -132,5 +137,21 @@ mod tests {
 		assert_eq!(float("+.123".as_bytes()), Ok(("".as_bytes(), 0.123)));
 		assert_eq!(float("+1.123".as_bytes()), Ok(("".as_bytes(), 1.123)));
 		assert_eq!(float("-1.123".as_bytes()), Ok(("".as_bytes(), -1.123)));
+	}
+
+	#[test]
+	fn it_parses_ints() {
+		assert_eq!(int("123".as_bytes()), Ok(("".as_bytes(), 123i32)));
+		assert_eq!(int("0".as_bytes()), Ok(("".as_bytes(), 0i32)));
+		assert_eq!(int("400000".as_bytes()), Ok(("".as_bytes(), 400000i32)));
+	}
+
+	#[test]
+	fn it_parses_words() {
+		assert_eq!(parse_word("g90".as_bytes()), Ok(("".as_bytes(), "g90".to_string())));
+		assert_eq!(parse_word("g0".as_bytes()), Ok(("".as_bytes(), "g0".to_string())));
+		assert_eq!(parse_word("x1.25".as_bytes()), Ok(("".as_bytes(), "x1.25".to_string())));
+		assert_eq!(parse_word("G90.1".as_bytes()), Ok(("".as_bytes(), "G90.1".to_string())));
+		assert_eq!(parse_word("g90.1".as_bytes()), Ok(("".as_bytes(), "g90.1".to_string())));
 	}
 }
