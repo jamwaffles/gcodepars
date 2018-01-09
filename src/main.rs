@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate nom;
+extern crate nalgebra;
 
 use std::fs::File;
 use std::io::prelude::*;

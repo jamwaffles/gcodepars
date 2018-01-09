@@ -1,17 +1,54 @@
 use nom::*;
 use std::str;
 use std::str::FromStr;
+use nalgebra::{ VectorN, U9 };
 
-#[derive(Debug)]
-enum Value {
-	Int(i32),
-	Float(f32),
+type Move = VectorN<f32, U9>;
+
+#[derive(Debug, PartialEq)]
+enum Axis {
+	A(f32), B(f32), C(f32), U(f32), V(f32), W(f32), X(f32), Y(f32), Z(f32)
 }
 
-#[derive(Debug)]
-enum Entity {
+#[derive(Debug, PartialEq)]
+enum GCode {
+	Rapid,			// G0
+	Move,			// G1
+	CWArc,			// G2
+	CCWArc,			// G3
+}
+
+#[derive(Debug, PartialEq)]
+enum MCode {
+	EndProgram,		// M2
+	SpindleCW,		// M3
+	SpindleCCW,		// M4
+	SpindleStop,	// M5
+	CoolantMist,	// M7
+	CoolantFloor,	// M8
+	CoolantOff,		// M9
+}
+
+#[derive(Debug, PartialEq)]
+enum Token {
 	Comment(String),
-	Word(String),
+	// RadiusCompensation(f32),
+	Feed(f32),
+	G(GCode),
+	// ToolLengthOffsetIndex(f32),
+	// ArcXOffset(f32),
+	// ArcYOffset(f32),
+	// ArcZOffset(f32),
+	// GenericParameter(f32),	// L word
+	M(MCode),
+	LineNumber(u32),
+	// DwellTime(f32),		// P
+	// FeedIncrement(f32),
+	Radius(f32),
+	SpindleSpeed(f32),
+	Tool(u32),
+	Move(Axis),
+	Unknown(String),
 }
 
 named!(float<f32>, do_parse!(
@@ -48,36 +85,70 @@ named!(int<i32>, do_parse!(
 ));
 
 named!(parse_word<&[u8], String>, flat_map!(
-	recognize!(preceded!(alpha, alt_complete!(recognize!(float) | recognize!(int)))),
+	recognize!(preceded!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), alt_complete!(recognize!(float) | recognize!(int)))),
 	parse_to!(String)
 ));
 
-// named!(parse_word<&[u8], (char, Value)>, do_parse!(
-// 	letter: map!(one_of!("ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"), |s| s.to_ascii_uppercase()) >>
-// 	value: alt!(float | int) >>
-// 	((letter, value))
-// ));
+fn match_gcode(number: &String) -> Option<GCode> {
+	match number.as_str() {
+		"0" => Some(GCode::Rapid),
+		"1" => Some(GCode::Move),
+		"2" => Some(GCode::CWArc),
+		"3" => Some(GCode::CCWArc),
+		_ => None
+	}
+}
 
-// named_args!(parse_word_float (letter: char) <f32>, do_parse!(
-// 	tag_no_case!(letter.to_string().as_bytes()) >>
-// 	number: float >>
-// 	({
-// 		println!("asdsgkjbajkshdgb {}", number);
+named!(parse_word_split<&[u8], Token>, do_parse!(
+	letter: map!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), |s| s.to_ascii_uppercase()) >>
+	number: flat_map!(alt_complete!(recognize!(float) | recognize!(int)), parse_to!(String)) >>
+	({
+		match letter {
+			'G' => match match_gcode(&number) {
+				Some(code) => Token::G(code),
+				None => Token::Unknown(format!("G{}", number)),
+			}
+			// 'M' => match number {
+			// 	_ => Token::Unknown(format!("M{}", number)),
+			// },
+			'R' => Token::Radius(number.parse::<f32>().unwrap()),
+			'F' => Token::Feed(number.parse::<f32>().unwrap()),
+			_ => Token::Unknown(format!("{}{}", letter, number)),
+		}
+	})
+));
 
-// 		123.0
-// 	})
-// ));
+named!(parse_axis<&[u8], Token>, do_parse!(
+	axis_letter: map!(one_of!("ABCUVWXYZabcuvwxyz"), |s| s.to_ascii_uppercase()) >>
+	value: alt_complete!(recognize!(float) | recognize!(int)) >>
+	({
+		let value_float = str::from_utf8(value).unwrap().parse::<f32>().unwrap();
 
-// named_with_args!(parse_word_int (letter: char), );
+		let axis = match axis_letter {
+			'A' => Axis::A(value_float),
+			'B' => Axis::B(value_float),
+			'C' => Axis::C(value_float),
+			'U' => Axis::U(value_float),
+			'V' => Axis::V(value_float),
+			'W' => Axis::W(value_float),
+			'X' => Axis::X(value_float),
+			'Y' => Axis::Y(value_float),
+			'Z' => Axis::Z(value_float),
+			_ => panic!("Axis letter {} not recognised", axis_letter),
+		};
 
-named!(parse_comment<&[u8], String>, do_parse!(
+		Token::Move(axis)
+	})
+));
+
+named!(parse_comment<&[u8], Token>, do_parse!(
 	tag!("(") >>
 	text: map_res!(
 		map_res!(take_until!(")"), str::from_utf8),
 		FromStr::from_str
 	) >>
 	tag!(")") >>
-	(text)
+	(Token::Comment(text))
 ));
 
 // named!(parse_numbered_variable, parse_int);
@@ -87,14 +158,12 @@ named!(parse_comment<&[u8], String>, do_parse!(
 // // Global vars must be parsed first because of the leading underscore
 // named!(parse_variable, "#", then one_of!(parse_numbered_variable | parse_global_variable | parse_local_variable))
 
-
-// FIXME: somethingsomething https://stackoverflow.com/questions/28931515/how-do-i-implement-fromstr-with-a-concrete-lifetime this maybe? idk
-
-named!(parse<&[u8], Vec<Entity>>, ws!(
+named!(parse<&[u8], Vec<Token>>, ws!(
 	many1!(
 		alt!(
-			parse_comment => { |c| Entity::Comment(c) }
-			// parse_word => { |g| Entity::Word(g) }
+			parse_comment |
+			parse_axis |
+			parse_word_split
 		)
 	)
 ));
@@ -102,9 +171,9 @@ named!(parse<&[u8], Vec<Entity>>, ws!(
 pub fn parse_gcode(input: &[u8]) {
 	println!("{}", str::from_utf8(input).unwrap());
 
-	// let parsed = parse(input);
+	let parsed = parse(input);
 
-	// println!("{:?}", parsed);
+	println!("{:?}", parsed);
 }
 
 pub fn construct_scope_tree() {
@@ -112,7 +181,6 @@ pub fn construct_scope_tree() {
 	// This is so we can do stuff like "run from line, but set the tool and start the spindle" or whatever
 	// It's a bit like an AST in that it holds context information
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -123,7 +191,7 @@ mod tests {
 		let comment = "(Good 👍 stuff 👌)".as_bytes();
 		let parsed = "Good 👍 stuff 👌".to_string();
 
-		assert_eq!(parse_comment(comment), Ok(("".as_bytes(), parsed)));
+		assert_eq!(parse_comment(comment), Ok(("".as_bytes(), Token::Comment(parsed))));
 	}
 
 	#[test]
@@ -150,8 +218,14 @@ mod tests {
 	fn it_parses_words() {
 		assert_eq!(parse_word("g90".as_bytes()), Ok(("".as_bytes(), "g90".to_string())));
 		assert_eq!(parse_word("g0".as_bytes()), Ok(("".as_bytes(), "g0".to_string())));
-		assert_eq!(parse_word("x1.25".as_bytes()), Ok(("".as_bytes(), "x1.25".to_string())));
 		assert_eq!(parse_word("G90.1".as_bytes()), Ok(("".as_bytes(), "G90.1".to_string())));
 		assert_eq!(parse_word("g90.1".as_bytes()), Ok(("".as_bytes(), "g90.1".to_string())));
+	}
+
+	#[test]
+	fn it_parses_axes() {
+		assert_eq!(parse_axis("x1".as_bytes()), Ok(("".as_bytes(), Token::Move(Axis::X(1.0f32)))));
+		assert_eq!(parse_axis("Y1.5".as_bytes()), Ok(("".as_bytes(), Token::Move(Axis::Y(1.5f32)))));
+		assert_eq!(parse_axis("Z.5".as_bytes()), Ok(("".as_bytes(), Token::Move(Axis::Z(0.5f32)))));
 	}
 }
