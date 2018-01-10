@@ -139,8 +139,6 @@ named!(axis<&[u8], Token>, do_parse!(
 	axis_letter: map!(one_of!("ABCUVWXYZabcuvwxyz"), |s| s.to_ascii_uppercase()) >>
 	value: number >>
 	({
-		// let value_float = str::from_utf8(value).unwrap().parse::<f32>().unwrap();
-
 		let axis = match axis_letter {
 			'A' => Axis::A(value),
 			'B' => Axis::B(value),
@@ -193,14 +191,14 @@ named!(comment<Token>, map!(
 // 	map!(tag_no_case!("G21"), |_| Token::MeasurementUnits(MeasurementUnit::Metric))
 // ));
 named!(feed<Token>, preceded!(tag_no_case!("F"), map!(number, Token::Feed)));
+named!(spindlespeed<Token>, preceded!(tag_no_case!("S"), map!(int, Token::SpindleSpeed)));
 named!(tool<Token>, preceded!(tag_no_case!("T"), map!(int, Token::Tool)));
 named!(radius<Token>, preceded!(tag_no_case!("R"), map!(number, Token::Radius)));
-named!(spindlespeed<Token>, preceded!(tag_no_case!("S"), map!(int, Token::SpindleSpeed)));
 // named!(program_end<Token>, map!(tag_no_case!("M2"), |_| Token::ProgramEnd));
 
 named!(unknown<Token>, map!(
 	flat_map!(
-		recognize!(preceded!(alpha, alt_complete!(recognize!(float) | recognize!(int)))),
+		recognize!(preceded!(alpha, number)),
 		parse_to!(String)
 	),
 	|t| Token::Unknown(t)
