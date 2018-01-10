@@ -4,11 +4,11 @@ use nalgebra::{ VectorN, U9 };
 
 type Vector9 = VectorN<f32, U9>;
 
-// #[derive(Debug, PartialEq)]
-// enum MeasurementUnit {
-// 	Imperial,	// G20
-// 	Metric,		// G21
-// }
+#[derive(Debug, PartialEq)]
+enum MeasurementUnits {
+	Imperial,	// G20
+	Metric,		// G21
+}
 
 // Order taken from here: http://linuxcnc.org/docs/html/gcode/overview.html#sub:numbered-parameters
 #[derive(Debug, PartialEq)]
@@ -42,27 +42,23 @@ enum Token {
 	Comment(String),
 	Word(String),
 	Axis(Axis),
+	Radius(f32),
+	Feed(f32),
+	Tool(i32),
+	SpindleSpeed(i32),
 	Unknown(String),
-	// MeasurementUnits(MeasurementUnit),
-	// // RadiusCompensation(f32),
-	// Feed(i32),
-	// // G(GCode),
-	// // ToolLengthOffsetIndex(f32),
-	// // ArcXOffset(f32),
-	// // ArcYOffset(f32),
-	// // ArcZOffset(f32),
-	// // GenericParameter(f32),	// L word
-	// // M(MCode),
-	// LineNumber(u32),
-	// // DwellTime(f32),		// P
-	// // FeedIncrement(f32),
-	// // Radius(f32),
-	// SpindleSpeed(u32),
-	// Tool(u32),
-	// Rapid(Vector9),
-	// Move(Vector9),
+}
 
-	// ProgramEnd,
+#[derive(Debug, PartialEq)]
+enum Command {
+	Token,
+	Context,
+}
+
+#[derive(Debug, PartialEq)]
+struct Context {
+	units: MeasurementUnits,
+	commands: Vec<Command>,
 }
 
 named!(float<f32>, do_parse!(
@@ -196,7 +192,10 @@ named!(comment<Token>, map!(
 // 	map!(tag_no_case!("G20"), |_| Token::MeasurementUnits(MeasurementUnit::Imperial)) |
 // 	map!(tag_no_case!("G21"), |_| Token::MeasurementUnits(MeasurementUnit::Metric))
 // ));
-// named!(feedrate<Token>, preceded!(tag_no_case!("F"), map!(int, Token::Feed)));
+named!(feed<Token>, preceded!(tag_no_case!("F"), map!(number, Token::Feed)));
+named!(tool<Token>, preceded!(tag_no_case!("T"), map!(int, Token::Tool)));
+named!(radius<Token>, preceded!(tag_no_case!("R"), map!(number, Token::Radius)));
+named!(spindlespeed<Token>, preceded!(tag_no_case!("S"), map!(int, Token::SpindleSpeed)));
 // named!(program_end<Token>, map!(tag_no_case!("M2"), |_| Token::ProgramEnd));
 
 named!(unknown<Token>, map!(
@@ -233,6 +232,10 @@ named!(line<Vec<Token>>, flat_map!(
 	many0!(
 		ws!(alt_complete!(
 			comment
+			| feed
+			| tool
+			| radius
+			| spindlespeed
 			| word
 			| axis
 			| unknown
