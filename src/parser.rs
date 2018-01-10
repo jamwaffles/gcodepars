@@ -4,11 +4,11 @@ use nalgebra::{ VectorN, U9 };
 
 type Vector9 = VectorN<f32, U9>;
 
-#[derive(Debug, PartialEq)]
-enum MeasurementUnit {
-	Imperial,	// G20
-	Metric,		// G21
-}
+// #[derive(Debug, PartialEq)]
+// enum MeasurementUnit {
+// 	Imperial,	// G20
+// 	Metric,		// G21
+// }
 
 // Order taken from here: http://linuxcnc.org/docs/html/gcode/overview.html#sub:numbered-parameters
 #[derive(Debug, PartialEq)]
@@ -40,26 +40,29 @@ enum Axis {
 #[derive(Debug, PartialEq)]
 enum Token {
 	Comment(String),
-	MeasurementUnits(MeasurementUnit),
-	// RadiusCompensation(f32),
-	Feed(i32),
-	// G(GCode),
-	// ToolLengthOffsetIndex(f32),
-	// ArcXOffset(f32),
-	// ArcYOffset(f32),
-	// ArcZOffset(f32),
-	// GenericParameter(f32),	// L word
-	// M(MCode),
-	LineNumber(u32),
-	// DwellTime(f32),		// P
-	// FeedIncrement(f32),
-	// Radius(f32),
-	SpindleSpeed(u32),
-	Tool(u32),
-	Rapid(Vector9),
-	Move(Vector9),
+	Word(String),
+	Axis(Axis),
 	Unknown(String),
-	ProgramEnd,
+	// MeasurementUnits(MeasurementUnit),
+	// // RadiusCompensation(f32),
+	// Feed(i32),
+	// // G(GCode),
+	// // ToolLengthOffsetIndex(f32),
+	// // ArcXOffset(f32),
+	// // ArcYOffset(f32),
+	// // ArcZOffset(f32),
+	// // GenericParameter(f32),	// L word
+	// // M(MCode),
+	// LineNumber(u32),
+	// // DwellTime(f32),		// P
+	// // FeedIncrement(f32),
+	// // Radius(f32),
+	// SpindleSpeed(u32),
+	// Tool(u32),
+	// Rapid(Vector9),
+	// Move(Vector9),
+
+	// ProgramEnd,
 }
 
 named!(float<f32>, do_parse!(
@@ -95,10 +98,18 @@ named!(int<i32>, do_parse!(
 	})
 ));
 
-// named!(word<&[u8], String>, flat_map!(
-// 	recognize!(preceded!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), alt_complete!(recognize!(float) | recognize!(int)))),
-// 	parse_to!(String)
-// ));
+named!(number<f32>, flat_map!(
+	alt_complete!(recognize!(float) | recognize!(int)),
+	parse_to!(f32)
+));
+
+named!(word<&[u8], Token>, map!(
+	flat_map!(
+		recognize!(preceded!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), recognize!(number))),
+		parse_to!(String)
+	),
+	|w| Token::Word(w)
+));
 
 // fn match_gcode(number: &String) -> Option<GCode> {
 // 	match number.as_str() {
@@ -128,65 +139,65 @@ named!(int<i32>, do_parse!(
 // 	})
 // ));
 
-named!(axis<&[u8], Axis>, do_parse!(
+named!(axis<&[u8], Token>, do_parse!(
 	axis_letter: map!(one_of!("ABCUVWXYZabcuvwxyz"), |s| s.to_ascii_uppercase()) >>
-	value: alt_complete!(recognize!(float) | recognize!(int)) >>
+	value: number >>
 	({
-		let value_float = str::from_utf8(value).unwrap().parse::<f32>().unwrap();
+		// let value_float = str::from_utf8(value).unwrap().parse::<f32>().unwrap();
 
 		let axis = match axis_letter {
-			'A' => Axis::A(value_float),
-			'B' => Axis::B(value_float),
-			'C' => Axis::C(value_float),
-			'U' => Axis::U(value_float),
-			'V' => Axis::V(value_float),
-			'W' => Axis::W(value_float),
-			'X' => Axis::X(value_float),
-			'Y' => Axis::Y(value_float),
-			'Z' => Axis::Z(value_float),
+			'A' => Axis::A(value),
+			'B' => Axis::B(value),
+			'C' => Axis::C(value),
+			'U' => Axis::U(value),
+			'V' => Axis::V(value),
+			'W' => Axis::W(value),
+			'X' => Axis::X(value),
+			'Y' => Axis::Y(value),
+			'Z' => Axis::Z(value),
 			_ => panic!("Axis letter {} not recognised", axis_letter),
 		};
 
-		axis
+		Token::Axis(axis)
 	})
 ));
 
-named!(axes<&[u8], Vector9>, map!(
-	many1!(axis),
-	|axes| {
-		let mut vector: [ f32; 9 ] = [ 0.0; 9 ];
+// named!(axes<&[u8], Vector9>, map!(
+// 	many1!(axis),
+// 	|axes| {
+// 		let mut vector: [ f32; 9 ] = [ 0.0; 9 ];
 
-		for axis in axes.iter() {
-			match axis {
-				// Order taken from here: http://linuxcnc.org/docs/html/gcode/overview.html#sub:numbered-parameters
-				&Axis::X(dist) => vector[0] = dist,
-				&Axis::Y(dist) => vector[1] = dist,
-				&Axis::Z(dist) => vector[2] = dist,
-				&Axis::A(dist) => vector[3] = dist,
-				&Axis::B(dist) => vector[4] = dist,
-				&Axis::C(dist) => vector[5] = dist,
-				&Axis::U(dist) => vector[6] = dist,
-				&Axis::V(dist) => vector[7] = dist,
-				&Axis::W(dist) => vector[8] = dist,
-			}
-		}
+// 		for axis in axes.iter() {
+// 			match axis {
+// 				// Order taken from here: http://linuxcnc.org/docs/html/gcode/overview.html#sub:numbered-parameters
+// 				&Axis::X(dist) => vector[0] = dist,
+// 				&Axis::Y(dist) => vector[1] = dist,
+// 				&Axis::Z(dist) => vector[2] = dist,
+// 				&Axis::A(dist) => vector[3] = dist,
+// 				&Axis::B(dist) => vector[4] = dist,
+// 				&Axis::C(dist) => vector[5] = dist,
+// 				&Axis::U(dist) => vector[6] = dist,
+// 				&Axis::V(dist) => vector[7] = dist,
+// 				&Axis::W(dist) => vector[8] = dist,
+// 			}
+// 		}
 
-		Vector9::from_column_slice(&vector)
-	}
-));
+// 		Vector9::from_column_slice(&vector)
+// 	}
+// ));
 
 named!(comment<Token>, map!(
 	flat_map!(delimited!(tag!("("), take_until!(")"), tag!(")")), parse_to!(String)),
 	Token::Comment
 ));
-named!(rapid<Token>, preceded!(tag_no_case!("G0"), map!(axes, Token::Rapid)));
-named!(linear_move<Token>, preceded!(tag_no_case!("G1"), map!(axes, Token::Move)));
-named!(measurement_units<Token>, alt!(
-	map!(tag_no_case!("G20"), |_| Token::MeasurementUnits(MeasurementUnit::Imperial)) |
-	map!(tag_no_case!("G21"), |_| Token::MeasurementUnits(MeasurementUnit::Metric))
-));
-named!(feedrate<Token>, preceded!(tag_no_case!("F"), map!(int, Token::Feed)));
-named!(program_end<Token>, map!(tag_no_case!("M2"), |_| Token::ProgramEnd));
+// named!(rapid<Token>, preceded!(tag_no_case!("G0"), map!(axes, Token::Rapid)));
+// named!(linear_move<Token>, preceded!(tag_no_case!("G1"), map!(axes, Token::Move)));
+// named!(measurement_units<Token>, alt!(
+// 	map!(tag_no_case!("G20"), |_| Token::MeasurementUnits(MeasurementUnit::Imperial)) |
+// 	map!(tag_no_case!("G21"), |_| Token::MeasurementUnits(MeasurementUnit::Metric))
+// ));
+// named!(feedrate<Token>, preceded!(tag_no_case!("F"), map!(int, Token::Feed)));
+// named!(program_end<Token>, map!(tag_no_case!("M2"), |_| Token::ProgramEnd));
 
 named!(unknown<Token>, map!(
 	flat_map!(
@@ -203,19 +214,33 @@ named!(unknown<Token>, map!(
 // // Global vars must be parsed first because of the leading underscore
 // named!(parse_variable, "#", then one_of!(parse_numbered_variable | parse_global_variable | parse_local_variable))
 
-named!(parse<&[u8], Vec<Token>>, ws!(
-	many1!(
-		alt!(
+// named!(parse<&[u8], Vec<Token>>, ws!(
+// 	many1!(
+// 		alt!(
+// 			comment
+// 			| rapid
+// 			| linear_move
+// 			| measurement_units
+// 			| feedrate
+// 			| program_end
+// 			| unknown
+// 		)
+// 	)
+// ));
+
+named!(line<Vec<Token>>, flat_map!(
+	recognize!(take_until_and_consume!("\n")),
+	many0!(
+		ws!(alt_complete!(
 			comment
-			| rapid
-			| linear_move
-			| measurement_units
-			| feedrate
-			| program_end
+			| word
+			| axis
 			| unknown
-		)
+		))
 	)
 ));
+
+named!(parse<Vec<Vec<Token>>>, many1!(line));
 
 pub fn parse_gcode(input: &[u8]) {
 	println!("{}", str::from_utf8(input).unwrap());
