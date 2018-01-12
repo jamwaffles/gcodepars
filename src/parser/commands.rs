@@ -22,5 +22,4 @@ pub enum Command {
 	Motion(Motion),
 	Units(Units),
 	Stop(Stop),
-	Unknown(String),
 }

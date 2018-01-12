@@ -1,11 +1,9 @@
 use nom::*;
-use std::slice;
-use std::str;
 
-use ::commands::*;
+use parser::commands::*;
 
 #[derive(Debug, PartialEq, Clone)]
-struct Vector9 {
+pub struct Vector9 {
 	x: Option<f32>,
 	y: Option<f32>,
 	z: Option<f32>,
@@ -19,7 +17,7 @@ struct Vector9 {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Token {
+pub enum Token {
 	Comment(String),
 	Unknown(String),
 	Command(Command),
@@ -110,40 +108,8 @@ named!(token<Token>, alt_complete!(
 
 named!(tokens<Vec<Token>>, ws!(many1!(token)));
 
-pub fn parse_gcode(input: &[u8]) {
-	println!("{}", str::from_utf8(input).unwrap());
-
+pub fn from_bytes(input: &[u8]) -> Vec<Token> {
 	let (_, parsed) = tokens(input).unwrap();
 
-	let tree = tree_from_tokens(&mut parsed.iter());
-
-	println!("{:?}", tree);
-}
-
-#[derive(Debug)]
-struct Context {
-	command: Option<Command>,
-	children: Option<Box<Context>>,
-	moves: Vec<Vector9>,
-}
-
-fn tree_from_tokens <'a>(mut tokens: &mut slice::Iter<'a, Token>) -> Context {
-	let mut context = Context {
-		command: None,
-		children: None,
-		moves: Vec::new(),
-	};
-
-	while let Some(token) = tokens.next() {
-		match token {
-			&Token::Command(ref c) => {
-				context.command = Some(c.clone());
-				context.children = Some(Box::new(tree_from_tokens(&mut tokens)));
-			},
-			&Token::Move(ref m) => context.moves.push(m.clone()),
-			_ => ()
-		}
-	}
-
-	context
+	parsed
 }

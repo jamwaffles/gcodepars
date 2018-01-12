@@ -6,7 +6,6 @@ use std::fs::File;
 use std::io::prelude::*;
 
 mod parser;
-mod commands;
 
 fn main() {
 	let filename = "./data/simpleaf.ngc";
@@ -18,5 +17,7 @@ fn main() {
 	f.read_to_string(&mut contents)
 		.expect("something went wrong reading the file");
 
-	parser::parse_gcode(&contents.as_bytes());
+	let program = parser::parse_bytes(&contents.as_bytes());
+
+	println!("{:?}", program.tree);
 }
