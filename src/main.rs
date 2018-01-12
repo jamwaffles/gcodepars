@@ -6,9 +6,10 @@ use std::fs::File;
 use std::io::prelude::*;
 
 mod parser;
+mod commands;
 
 fn main() {
-	let filename = "./data/comp.ngc";
+	let filename = "./data/simpleaf.ngc";
 
 	let mut f = File::open(filename).expect("file not found");
 
