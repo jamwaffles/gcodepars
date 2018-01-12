@@ -24,37 +24,24 @@ enum Token {
 	Move(Vector9),
 }
 
-named!(float<f32>, do_parse!(
-	sign: opt!(one_of!("+-")) >>
-	num: recognize!(
-		alt_complete!(
-			delimited!(digit, tag!("."), opt!(digit)) |
-			delimited!(opt!(digit), tag!("."), digit)
+named!(float<f32>, flat_map!(
+	recognize!(
+		preceded!(
+			opt!(one_of!("+-")),
+			alt_complete!(
+				delimited!(digit, tag!("."), opt!(digit)) |
+				delimited!(opt!(digit), tag!("."), digit)
+			)
 		)
-	) >>
-	({
-		let parsed = str::from_utf8(num).unwrap().parse::<f32>().unwrap();
-
-		match sign {
-			Some('-') => parsed * -1.0,
-			_ => parsed,
-		}
-	})
+	),
+	parse_to!(f32)
 ));
 
-named!(int<i32>, do_parse!(
-	sign: opt!(tag!("-")) >>
-	num: digit >>
-	({
-		let a = match sign {
-			Some(sign) => str::from_utf8(sign).unwrap(),
-			None => ""
-		};
-
-		let b = str::from_utf8(num).unwrap();
-
-		format!("{}{}", a, b).parse::<i32>().unwrap()
-	})
+named!(int<i32>, flat_map!(
+	recognize!(
+		preceded!(opt!(one_of!("+-")), digit)
+	),
+	parse_to!(i32)
 ));
 
 named!(number<f32>, flat_map!(

@@ -1,7 +1,7 @@
 (really simple program for testing rubbish)
 
 g21
-g0 x0 y0 z20
+g0 x0 y0.5 z20
 g1 z-1
 g1 x10 y0
 x20 y10
