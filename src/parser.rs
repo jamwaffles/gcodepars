@@ -1,6 +1,7 @@
 use nom::*;
 use std::str;
-use std::slice;
+
+use ::commands::*;
 
 #[derive(Debug, PartialEq, Clone)]
 struct Vector9 {
@@ -20,7 +21,7 @@ struct Vector9 {
 enum Token {
 	Comment(String),
 	Unknown(String),
-	Command(String),
+	Command(Command),
 	Move(Vector9),
 }
 
@@ -49,15 +50,28 @@ named!(number<f32>, flat_map!(
 	parse_to!(f32)
 ));
 
-named!(gmcode<String>, map!(
-	flat_map!(
-		recognize!(preceded!(one_of!("GMgm"), number)),
-		parse_to!(String)
-	),
-	|w| w.to_uppercase()
+named!(motioncommand<Command>, alt_complete!(
+	map!(tag_no_case!("G0"), |_| Command::Motion(Motion::Rapid))
+	| map!(tag_no_case!("G1"), |_| Command::Motion(Motion::Linear))
 ));
 
-named!(command<Token>, map!(gmcode, |c| Token::Command(c)));
+named!(unitscommand<Command>, alt_complete!(
+	map!(tag_no_case!("G20"), |_| Command::Units(Units::Imperial))
+	| map!(tag_no_case!("G21"), |_| Command::Units(Units::Metric))
+));
+
+named!(stopcommand<Command>, alt_complete!(
+	map!(tag_no_case!("M2"), |_| Command::Stop(Stop::End))
+));
+
+named!(command<Token>, map!(
+	alt!(
+		motioncommand
+		| unitscommand
+		| stopcommand
+	),
+	|g| Token::Command(g)
+));
 
 named!(parse_move<Token>, ws!(do_parse!(
 	x: opt!(complete!(preceded!(tag_no_case!("X"), number))) >>
