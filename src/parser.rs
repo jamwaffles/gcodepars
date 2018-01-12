@@ -1,4 +1,5 @@
 use nom::*;
+use std::slice;
 use std::str;
 
 use ::commands::*;
@@ -112,13 +113,37 @@ named!(tokens<Vec<Token>>, ws!(many1!(token)));
 pub fn parse_gcode(input: &[u8]) {
 	println!("{}", str::from_utf8(input).unwrap());
 
-	// let (_, lines) = parse(input).unwrap();
+	let (_, parsed) = tokens(input).unwrap();
 
-	// let all: Vec<Token> = lines.into_iter().flat_map(|l| l.tokens).collect();
+	let tree = tree_from_tokens(&mut parsed.iter());
 
-	// println!("\nAll {:?}", all);
+	println!("{:?}", tree);
+}
 
-	let parsed = tokens(input);
+#[derive(Debug)]
+struct Context {
+	command: Option<Command>,
+	children: Option<Box<Context>>,
+	moves: Vec<Vector9>,
+}
 
-	println!("{:?}", parsed);
+fn tree_from_tokens <'a>(mut tokens: &mut slice::Iter<'a, Token>) -> Context {
+	let mut context = Context {
+		command: None,
+		children: None,
+		moves: Vec::new(),
+	};
+
+	while let Some(token) = tokens.next() {
+		match token {
+			&Token::Command(ref c) => {
+				context.command = Some(c.clone());
+				context.children = Some(Box::new(tree_from_tokens(&mut tokens)));
+			},
+			&Token::Move(ref m) => context.moves.push(m.clone()),
+			_ => ()
+		}
+	}
+
+	context
 }
