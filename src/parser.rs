@@ -1,8 +1,11 @@
 use nom::*;
 use std::str;
-use nalgebra::{ VectorN, U9 };
+use std::slice;
+// use nalgebra::{ VectorN, U9 };
 
-type Vector9 = VectorN<f32, U9>;
+use ::commands::*;
+
+// type Vector9 = VectorN<f32, U9>;
 
 #[derive(Debug, PartialEq)]
 enum MeasurementUnits {
@@ -11,7 +14,7 @@ enum MeasurementUnits {
 }
 
 // Order taken from here: http://linuxcnc.org/docs/html/gcode/overview.html#sub:numbered-parameters
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum Axis {
 	X(f32), Y(f32), Z(f32),
 	A(f32), B(f32), C(f32),
@@ -37,7 +40,7 @@ enum Axis {
 // 	CoolantOff,		// M9
 // }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum Token {
 	Comment(String),
 	Word(String),
@@ -47,18 +50,14 @@ enum Token {
 	Tool(i32),
 	SpindleSpeed(i32),
 	Unknown(String),
+
+	Command(Command),
 }
 
-#[derive(Debug, PartialEq)]
-enum Command {
-	Token,
-	Context,
-}
-
-#[derive(Debug, PartialEq)]
-struct Context {
-	units: MeasurementUnits,
-	commands: Vec<Command>,
+#[derive(Debug, PartialEq, Clone)]
+struct Line {
+	tokens: Vec<Token>,
+	linenumber: u32,
 }
 
 named!(float<f32>, do_parse!(
@@ -107,33 +106,44 @@ named!(word<&[u8], Token>, map!(
 	|w| Token::Word(w)
 ));
 
-// fn match_gcode(number: &String) -> Option<GCode> {
-// 	match number.as_str() {
-// 		"0" => Some(GCode::Rapid),
-// 		"1" => Some(GCode::Move),
-// 		"2" => Some(GCode::CWArc),
-// 		"3" => Some(GCode::CCWArc),
-// 		_ => None
-// 	}
-// }
+named!(gmcode<String>, map!(
+	flat_map!(
+		complete!(
+			recognize!(
+				preceded!(one_of!("GMgm"), number)
+			)
+		),
+		parse_to!(String)
+	),
+	|w| w.to_uppercase()
+));
 
-// named!(word_split<&[u8], Token>, do_parse!(
-// 	letter: map!(one_of!("DFGHIJKLMNPQRSTdfghijklmnpqrst"), |s| s.to_ascii_uppercase()) >>
-// 	number: flat_map!(alt_complete!(recognize!(float) | recognize!(int)), parse_to!(String)) >>
-// 	({
-// 		match letter {
-// 			'G' => match match_gcode(&number) {
-// 				Some(code) => Token::G(code),
-// 				None => Token::Unknown(format!("G{}", number)),
-// 			}
-// 			// 'M' => match number {
-// 			// 	_ => Token::Unknown(format!("M{}", number)),
-// 			// },
-// 			'R' => Token::Radius(number.parse::<f32>().unwrap()),
-// 			_ => Token::Unknown(format!("{}{}", letter, number)),
-// 		}
-// 	})
-// ));
+named!(motioncommand<Command>, alt_complete!(
+	map!(tag_no_case!("G0"), |_| Command::Motion(Motion::Rapid))
+	| map!(tag_no_case!("G1"), |_| Command::Motion(Motion::Linear))
+));
+
+named!(unitscommand<Command>, alt_complete!(
+	map!(tag_no_case!("G20"), |_| Command::Units(Units::Imperial))
+	| map!(tag_no_case!("G21"), |_| Command::Units(Units::Metric))
+));
+
+named!(stopcommand<Command>, map!(
+	gmcode,
+	|word| match word.as_str() {
+		"M2" => Command::Stop(Stop::End),
+		_ => Command::Unknown(word),
+	}
+));
+
+named!(command<Token>, map!(
+	alt!(
+		motioncommand
+		| unitscommand
+		| stopcommand
+	),
+	|g| Token::Command(g)
+));
 
 named!(axis<&[u8], Token>, do_parse!(
 	axis_letter: map!(one_of!("ABCUVWXYZabcuvwxyz"), |s| s.to_ascii_uppercase()) >>
@@ -155,30 +165,6 @@ named!(axis<&[u8], Token>, do_parse!(
 		Token::Axis(axis)
 	})
 ));
-
-// named!(axes<&[u8], Vector9>, map!(
-// 	many1!(axis),
-// 	|axes| {
-// 		let mut vector: [ f32; 9 ] = [ 0.0; 9 ];
-
-// 		for axis in axes.iter() {
-// 			match axis {
-// 				// Order taken from here: http://linuxcnc.org/docs/html/gcode/overview.html#sub:numbered-parameters
-// 				&Axis::X(dist) => vector[0] = dist,
-// 				&Axis::Y(dist) => vector[1] = dist,
-// 				&Axis::Z(dist) => vector[2] = dist,
-// 				&Axis::A(dist) => vector[3] = dist,
-// 				&Axis::B(dist) => vector[4] = dist,
-// 				&Axis::C(dist) => vector[5] = dist,
-// 				&Axis::U(dist) => vector[6] = dist,
-// 				&Axis::V(dist) => vector[7] = dist,
-// 				&Axis::W(dist) => vector[8] = dist,
-// 			}
-// 		}
-
-// 		Vector9::from_column_slice(&vector)
-// 	}
-// ));
 
 named!(comment<Token>, map!(
 	flat_map!(delimited!(tag!("("), take_until!(")"), tag!(")")), parse_to!(String)),
@@ -211,25 +197,12 @@ named!(unknown<Token>, map!(
 // // Global vars must be parsed first because of the leading underscore
 // named!(parse_variable, "#", then one_of!(parse_numbered_variable | parse_global_variable | parse_local_variable))
 
-// named!(parse<&[u8], Vec<Token>>, ws!(
-// 	many1!(
-// 		alt!(
-// 			comment
-// 			| rapid
-// 			| linear_move
-// 			| measurement_units
-// 			| feedrate
-// 			| program_end
-// 			| unknown
-// 		)
-// 	)
-// ));
-
 named!(line<Vec<Token>>, flat_map!(
 	recognize!(take_until_and_consume!("\n")),
 	many0!(
 		ws!(alt_complete!(
 			comment
+			| command
 			| feed
 			| tool
 			| radius
@@ -241,14 +214,58 @@ named!(line<Vec<Token>>, flat_map!(
 	)
 ));
 
-named!(parse<Vec<Vec<Token>>>, many1!(line));
+named!(parse<Vec<Line>>, map!(
+	many1!(line),
+	|lines| lines.into_iter().enumerate().map(|(i, l)| Line {
+		tokens: l,
+		linenumber: i as u32
+	}).collect::<Vec<Line>>()
+));
 
-pub fn parse_gcode(input: &[u8]) {
-	println!("{}", str::from_utf8(input).unwrap());
+type Vector9 = [ f32; 9 ];
 
-	let parsed = parse(input);
+#[derive(Debug, PartialEq)]
+struct Context {
+	units: Option<Units>,
+	motion: Option<Motion>,
+	moves: Vec<Vector9>,
+	child_context: Option<Box<Context>>,
+}
 
-	println!("{:?}", parsed);
+// If a line contains a command that would overwrite a set group command in the current context, create a new context (i.e. recurse)
+// If a line contains no axes (just commands), add to the current context's commands
+// If a line contains both an axis and anything else (command, feed, etc), create a new context (i.e. recurse)
+// Otherwise, append the found axes to the current context's moves
+fn create_tree_from_tokens <'a>(mut tokens: &mut slice::Iter<'a, Token>) -> Context {
+	let mut context = Context {
+		units: None,
+		motion: None,
+		moves: Vec::new(),
+		child_context: None
+	};
+
+	while let Some(token) = tokens.next() {
+		let mut should_recurse = false;
+
+		match token {
+			&Token::Command(ref w) => match w {
+				&Command::Motion(ref m) => if context.motion.is_none() { context.motion = Some(m.clone()) } else { should_recurse = true },
+				&Command::Units(ref u) => if context.units.is_none() { context.units = Some(u.clone()) } else { should_recurse = true },
+
+				_ => ()
+			},
+
+			&Token::Axis(ref a) => context.moves.push([ 0.0; 9 ]),
+
+			_ => ()
+		}
+
+		if should_recurse {
+			context.child_context = Some(Box::new(create_tree_from_tokens(&mut tokens)));
+		}
+	}
+
+	context
 }
 
 // pub fn construct_scope_tree() {
@@ -256,6 +273,20 @@ pub fn parse_gcode(input: &[u8]) {
 // 	// This is so we can do stuff like "run from line, but set the tool and start the spindle" or whatever
 // 	// It's a bit like an AST in that it holds context information
 // }
+
+pub fn parse_gcode(input: &[u8]) {
+	println!("{}", str::from_utf8(input).unwrap());
+
+	let (_, lines) = parse(input).unwrap();
+
+	let all: Vec<Token> = lines.into_iter().flat_map(|l| l.tokens).collect();
+
+	println!("All {:?}", all);
+
+	let tree = create_tree_from_tokens(&mut all.iter());
+
+	println!("\n\nTree: {:?}", tree);
+}
 
 #[cfg(test)]
 mod tests {
