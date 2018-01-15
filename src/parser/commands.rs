@@ -18,8 +18,14 @@ pub enum Stop {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Offset {
+	G54,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Command {
 	Motion(Motion),
 	Units(Units),
 	Stop(Stop),
+	Offset(Offset)
 }

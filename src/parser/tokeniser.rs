@@ -1,5 +1,6 @@
 use nom::*;
 
+use parser::commands;
 use parser::commands::*;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -49,6 +50,10 @@ named!(number<f32>, flat_map!(
 	parse_to!(f32)
 ));
 
+named!(offsetcommand<Command>, alt_complete!(
+	map!(tag_no_case!("G54"), |_| Command::Offset(commands::Offset::G54))
+));
+
 named!(motioncommand<Command>, alt_complete!(
 	map!(tag_no_case!("G0"), |_| Command::Motion(Motion::Rapid))
 	| map!(tag_no_case!("G1"), |_| Command::Motion(Motion::Linear))
@@ -66,6 +71,7 @@ named!(stopcommand<Command>, alt_complete!(
 named!(command<Token>, map!(
 	alt!(
 		motioncommand
+		| offsetcommand
 		| unitscommand
 		| stopcommand
 	),

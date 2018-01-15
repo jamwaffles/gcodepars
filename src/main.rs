@@ -19,5 +19,5 @@ fn main() {
 
 	let program = parser::parse_bytes(&contents.as_bytes());
 
-	println!("{:?}", program.tree);
+	println!("{:#?}", program.tree);
 }

@@ -12,9 +12,9 @@ pub struct Program {
 
 pub fn parse_bytes(input: &[u8]) -> Program {
 	let tokens = from_bytes(&input);
-	let tree = from_tokens(&tokens);
+	let tree = from_tokens(&tokens).first().unwrap();
 
 	Program {
-		tree,
+		tree: *tree,
 	}
 }
