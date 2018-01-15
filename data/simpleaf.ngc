@@ -1,5 +1,6 @@
 (really simple program for testing rubbish)
 
+g54
 g21
 g0 x0 y0.5 z20
 g1 z-1
